@@ -10,7 +10,7 @@
   outputs =
     inputs@{ flake-parts, rust-overlay, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } (
-      { ... }:
+      { self, ... }:
       {
         systems = [
           "x86_64-linux"
@@ -39,9 +39,42 @@
             # so this is intentionally not defined on the darwin systems above
             # rather than shipping something unverified.
             packages = lib.optionalAttrs pkgs.stdenv.isLinux {
-              default = pkgs.rustPlatform.buildRustPackage {
+              default = pkgs.rustPlatform.buildRustPackage rec {
                 pname = "imgview";
                 version = "0.1.0";
+
+                # So it shows up in application menus and as an "Open With"
+                # option for its supported formats in file managers — imgview
+                # itself needs a file argument (it's a viewer, not a picker),
+                # so this is mainly useful for file-association, not for
+                # launching with no arguments from a bare menu icon.
+                desktopItem = pkgs.makeDesktopItem {
+                  name = "imgview";
+                  exec = "imgview %f";
+                  icon = "image-x-generic";
+                  desktopName = "ImgView";
+                  genericName = "Image Viewer";
+                  comment = "A minimal SVG/image viewer with pan and zoom";
+                  categories = [
+                    "Graphics"
+                    "Viewer"
+                  ];
+                  mimeTypes = [
+                    "image/svg+xml"
+                    "image/png"
+                    "image/jpeg"
+                    "image/gif"
+                    "image/webp"
+                    "image/x-portable-graymap"
+                    "image/x-portable-bitmap"
+                    "image/x-portable-pixmap"
+                    "image/x-portable-anymap"
+                  ];
+                };
+                postInstall = ''
+                  install -Dm644 ${desktopItem}/share/applications/*.desktop \
+                    $out/share/applications/imgview.desktop
+                '';
 
                 # Whole repo, not just src-tauri/: tauri_build::build() reads
                 # tauri.conf.json's `frontendDist: "../src"` and embeds those
@@ -138,6 +171,34 @@
 
                 env.RUSTFLAGS = "-C link-arg=-Wl,-rpath,${pkgs.lib.makeLibraryPath dlopenLibraries}";
               };
+          };
+
+        # `nixosModules`/`overlays`/etc. aren't per-system, so they live under
+        # `flake.*` rather than `perSystem` (flake-parts merges this straight
+        # into the flake's top-level outputs). Usage, in a NixOS config that
+        # imports this flake:
+        #   imports = [ imgview.nixosModules.default ];
+        #   programs.imgview.enable = true;
+        flake.nixosModules.default =
+          {
+            config,
+            lib,
+            pkgs,
+            ...
+          }:
+          let
+            cfg = config.programs.imgview;
+          in
+          {
+            options.programs.imgview.enable = lib.mkEnableOption "imgview, a minimal CLI SVG/image viewer";
+
+            config = lib.mkIf cfg.enable {
+              # Indexes back into *this* flake's own `packages` output for the
+              # importing system (built with our pinned nixpkgs/rust-overlay),
+              # not something built against the importing config's own
+              # nixpkgs — `pkgs` here is only used for its `.system` string.
+              environment.systemPackages = [ self.packages.${pkgs.system}.default ];
+            };
           };
       }
     );
