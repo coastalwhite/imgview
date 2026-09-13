@@ -190,7 +190,7 @@
               # importing system (built with our pinned nixpkgs/rust-overlay),
               # not something built against the importing config's own
               # nixpkgs — `pkgs` here is only used for its `.system` string.
-              environment.systemPackages = [ self.packages.${pkgs.system}.default ];
+              environment.systemPackages = [ self.packages.${pkgs.stdenv.hostPlatform.system}.default ];
             };
           };
       }
