@@ -1,0 +1,31 @@
+[package]
+name = "imgview"
+version = "0.1.0"
+description = "A minimal SVG/image viewer with pan and zoom"
+edition = "2021"
+# gpui-kit's Linux dependency tree (oo7, via gpui-pre-linux) does not build on
+# anything older.
+rust-version = "1.92"
+
+[dependencies]
+# The whole GPUI stack: GPUI itself (re-exported at the crate root), the
+# platform layer, and GPUI Component. See https://gpui-kit.com.
+gpui-kit = "0.6"
+# SVG parsing and rasterization. Same version GPUI itself depends on, so this
+# adds no second copy of resvg/usvg/tiny-skia to the build.
+resvg = "0.46"
+# Decoding raster formats, downscaling, and the `Frame`/`ImageBuffer` types
+# GPUI's `RenderImage` is built from.
+image = { version = "0.25", default-features = false, features = [
+    "pnm",
+    "png",
+    "jpeg",
+    "gif",
+    "webp",
+] }
+
+# The laser pointer needs to hide the system cursor, which `gpui-pre` 0.3.4
+# exposes no way to ask for. See vendor/README.md — including how to drop this
+# again once upstream carries a hidden cursor style.
+[patch.crates-io]
+gpui-pre-linux = { path = "vendor/gpui-pre-linux" }
